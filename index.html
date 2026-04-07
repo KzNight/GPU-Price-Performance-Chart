@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>显卡性价比分析 - 性能/价格曲线（对数坐标优化版）</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #0a0a0a;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        .header {
+            text-align: center;
+            padding: 30px 20px 20px;
+            position: relative;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, #00d4ff, #7b2ff7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header .subtitle {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+
+        .btn {
+            padding: 8px 20px;
+            border: 1px solid #333;
+            background: #1a1a1a;
+            color: #aaa;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s;
+        }
+
+        .btn:hover {
+            border-color: #00d4ff;
+            color: #00d4ff;
+            background: rgba(0, 212, 255, 0.1);
+        }
+
+        .btn.active {
+            border-color: #00d4ff;
+            color: #00d4ff;
+            background: rgba(0, 212, 255, 0.15);
+        }
+
+        .file-upload {
+            position: relative;
+            display: inline-block;
+        }
+
+        .file-upload input[type="file"] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            background: #111;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #222;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            cursor: crosshair;
+        }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+            font-size: 12px;
+            color: #888;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(20, 20, 30, 0.95);
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 12px 16px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            max-width: 280px;
+        }
+
+        .tooltip.visible {
+            opacity: 1;
+        }
+
+        .tooltip-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 6px;
+        }
+
+        .tooltip-info {
+            font-size: 12px;
+            color: #aaa;
+            line-height: 1.8;
+        }
+
+        .tooltip-info span {
+            color: #00d4ff;
+            font-weight: 500;
+        }
+
+        .highlight-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #00d4ff, #7b2ff7);
+            color: #fff;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            margin-top: 6px;
+        }
+
+        .stats-panel {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #00d4ff;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .data-table-container {
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .data-table th {
+            background: #1a1a1a;
+            padding: 12px 16px;
+            text-align: left;
+            color: #888;
+            font-weight: 500;
+            border-bottom: 1px solid #333;
+        }
+
+        .data-table td {
+            padding: 10px 16px;
+            border-bottom: 1px solid #222;
+            color: #ccc;
+        }
+
+        .data-table tr:hover td {
+            background: rgba(0, 212, 255, 0.05);
+        }
+
+        .data-table .highlight-row td {
+            color: #00d4ff;
+            font-weight: 500;
+        }
+
+        .data-table .cost-performance {
+            color: #7b2ff7;
+        }
+
+        .json-template {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 20px auto;
+            max-width: 600px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+            color: #888;
+            overflow-x: auto;
+            display: none;
+        }
+
+        .json-template.visible {
+            display: block;
+        }
+
+        .json-template pre {
+            margin: 0;
+            white-space: pre-wrap;
+        }
+
+        .back-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 1px solid #333;
+            background: rgba(20, 20, 30, 0.8);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 50;
+            transition: all 0.3s;
+            backdrop-filter: blur(10px);
+        }
+
+        .back-btn:hover {
+            border-color: #00d4ff;
+            color: #00d4ff;
+        }
+
+        .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-30deg);
+            font-size: 120px;
+            color: rgba(255, 255, 255, 0.02);
+            pointer-events: none;
+            z-index: 0;
+            font-weight: 900;
+            letter-spacing: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 20px;
+            }
+            .chart-wrapper {
+                padding: 10px;
+            }
+            .stats-panel {
+                gap: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="watermark">GPU BENCHMARK</div>
+    
+    <div class="back-btn" id="backBtn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+    </div>
+
+    <div class="header">
+        <h1>性价比曲线 - 显卡性能/价格分析 (对数价格轴)</h1>
+        <div class="subtitle">*价格轴采用对数坐标，低价区间分布更清晰 | 基于天梯分数与市场价格</div>
+        <div class="controls">
+            <button class="btn" id="loadDefaultBtn">加载默认数据</button>
+            <div class="file-upload">
+                <button class="btn" id="uploadBtn">📁 上传JSON数据</button>
+                <input type="file" id="fileInput" accept=".json,.txt">
+            </div>
+            <button class="btn" id="toggleTemplateBtn">查看JSON格式</button>
+            <button class="btn" id="toggleTableBtn">📊 数据表格</button>
+            <button class="btn" id="filterBtn">仅显示高性价比</button>
+        </div>
+        <div class="json-template" id="jsonTemplate">
+            <pre>{
+  "gpus": [
+    {
+      "name": "NVIDIA GeForce RTX 5090 D",
+      "memory": "32GB GDDR7",
+      "release": "2025.01",
+      "score": 48052,
+      "price": 19000
+    }
+  ]
+}</pre>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <div class="chart-wrapper">
+            <canvas id="chartCanvas"></canvas>
+            <div class="tooltip" id="tooltip">
+                <div class="tooltip-name" id="tooltipName"></div>
+                <div class="tooltip-info" id="tooltipInfo"></div>
+            </div>
+        </div>
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-dot" style="background: #00d4ff;"></div>
+                <span>高性价比产品（高于平均性价比）</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background: #ff6b6b;"></div>
+                <span>低性价比产品（低于平均性价比）</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background: #7b2ff7;"></div>
+                <span>市场平均趋势线 (对数回归)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background: #ffd700;"></div>
+                <span>理想性价比线 (1:1参考)</span>
+            </div>
+        </div>
+        <div class="stats-panel" id="statsPanel">
+            <div class="stat-item">
+                <div class="stat-value" id="totalGpus">0</div>
+                <div class="stat-label">显卡总数</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="avgCostPerformance">0</div>
+                <div class="stat-label">平均性价比</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="bestValue">-</div>
+                <div class="stat-label">最佳性价比</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="highlightCount">0</div>
+                <div class="stat-label">推荐产品</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="data-table-container" id="tableContainer" style="display: none;">
+        <table class="data-table" id="dataTable">
+            <thead>
+                <tr>
+                    <th>排名</th>
+                    <th>显卡名称</th>
+                    <th>显存</th>
+                    <th>天梯分数</th>
+                    <th>价格 (¥)</th>
+                    <th>性价比</th>
+                    <th>评价</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // 默认显卡数据（包含估算价格）
+        const defaultGPUData = {
+            "gpus": [
+                {"name": "NVIDIA GeForce RTX 5090 D", "memory": "32GB GDDR7", "release": "2025.01", "score": 48052, "price": 19000},
+                {"name": "NVIDIA GeForce RTX 5090", "memory": "32GB GDDR7", "release": "2025.01", "score": 47510, "price": 24400},
+                {"name": "NVIDIA GeForce RTX 4090", "memory": "24GB GDDR6X", "release": "2022.09", "score": 36328, "price": 14500},
+                {"name": "NVIDIA GeForce RTX 4090 D", "memory": "24GB GDDR6X", "release": "2023.12", "score": 34258, "price": 14000},
+                {"name": "NVIDIA GeForce RTX 5080", "memory": "16GB GDDR7", "release": "2025.01", "score": 33116, "price": 8299},
+                {"name": "AMD Radeon RX 7900 XTX", "memory": "24GB GDDR6", "release": "2022.11", "score": 30512, "price": 7300},
+                {"name": "AMD Radeon RX 9070 XT", "memory": "16GB GDDR6", "release": "2025.03", "score": 30445, "price": 4800},
+                {"name": "NVIDIA GeForce RTX 4080 SUPER", "memory": "16GB GDDR6X", "release": "2024.01", "score": 28304, "price": 8100},
+                {"name": "NVIDIA GeForce RTX 4080", "memory": "16GB GDDR6X", "release": "2022.09", "score": 28173, "price": 7200},
+                {"name": "NVIDIA GeForce RTX 5070 Ti", "memory": "16GB GDDR7", "release": "2025.02", "score": 27607, "price": 6300},
+                {"name": "AMD Radeon RX 9070", "memory": "16GB GDDR6", "release": "2025.03", "score": 26876, "price": 4400},
+                {"name": "AMD Radeon RX 7900 XT", "memory": "20GB GDDR6", "release": "2022.11", "score": 26829, "price": 6900},
+                {"name": "NVIDIA GeForce RTX 4070 Ti SUPER", "memory": "16GB GDDR6X", "release": "2024.01", "score": 24314, "price": 6500},
+                {"name": "NVIDIA GeForce RTX 4070 Ti", "memory": "12GB GDDR6X", "release": "2023.01", "score": 22771, "price": 6300},
+                {"name": "NVIDIA GeForce RTX 5070", "memory": "12GB GDDR7", "release": "2025.03", "score": 22544, "price": 5000},
+                {"name": "AMD Radeon RX 7900 GRE", "memory": "16GB GDDR6", "release": "2023.07", "score": 22476, "price": 5400},
+                {"name": "NVIDIA GeForce RTX 3090 Ti", "memory": "24GB GDDR6X", "release": "2022.01", "score": 21832, "price": 12000},
+                {"name": "AMD Radeon RX 6950 XT", "memory": "16GB GDDR6", "release": "2022.05", "score": 21537, "price": 9000},
+                {"name": "NVIDIA GeForce RTX 4070 SUPER", "memory": "12GB GDDR6X", "release": "2024.01", "score": 21035, "price": 4900},
+                {"name": "AMD Radeon RX 6900 XT", "memory": "16GB GDDR6", "release": "2020.10", "score": 20764, "price": 8000},
+                {"name": "AMD Radeon RX 7800 XT", "memory": "16GB GDDR6", "release": "2023.08", "score": 20086, "price": 4300},
+                {"name": "NVIDIA GeForce RTX 3090", "memory": "24GB GDDR6X", "release": "2020.09", "score": 19893, "price": 12000},
+                {"name": "NVIDIA GeForce RTX 3080 Ti", "memory": "12GB GDDR6X", "release": "2021.05", "score": 19629, "price": 10000},
+                {"name": "AMD Radeon RX 6800 XT", "memory": "16GB GDDR6", "release": "2020.10", "score": 19329, "price": 5000},
+                {"name": "NVIDIA GeForce RTX 3080 Ti 20 GB", "memory": "8GB GDDR6", "release": "2025.06", "score": 19216, "price": 8000},
+                {"name": "NVIDIA GeForce RTX 4080 Mobile", "memory": "12GB GDDR6", "release": "2023.01", "score": 18875, "price": 8000},
+                {"name": "NVIDIA GeForce RTX 3080 12 GB", "memory": "12GB GDDR6X", "release": "2022.01", "score": 18647, "price": 5500},
+                {"name": "AMD Radeon RX 7900M", "memory": "16GB GDDR6", "release": "2023.10", "score": 18218, "price": 8000},
+                {"name": "NVIDIA GeForce RTX 4070", "memory": "12GB GDDR6X", "release": "2023.04", "score": 17887, "price": 4200},
+                {"name": "NVIDIA GeForce RTX 3080", "memory": "10GB GDDR6X", "release": "2020.09", "score": 17662, "price": 5500},
+                {"name": "NVIDIA GeForce RTX 5070 Ti Mobile", "memory": "12GB GDDR7", "release": "2025.03", "score": 17452, "price": 7000},
+                {"name": "AMD Radeon RX 7700 XT", "memory": "12GB GDDR6", "release": "2023.08", "score": 17075, "price": 3100},
+                {"name": "AMD Radeon RX 9060 XT 8 GB", "memory": "8GB GDDR6", "release": "2025.06", "score": 16565, "price": 2800},
+                {"name": "AMD Radeon RX 9060 XT 16 GB", "memory": "16GB GDDR6", "release": "2025.06", "score": 16494, "price": 2800},
+                {"name": "AMD Radeon RX 6800", "memory": "16GB GDDR6", "release": "2020.10", "score": 16182, "price": 4600},
+                {"name": "NVIDIA GeForce RTX 5060 Ti 16 GB", "memory": "16GB GDDR7", "release": "2025.04", "score": 16065, "price": 4000},
+                {"name": "AMD Radeon Pro W6800", "memory": "32GB GDDR6", "release": "2021.06", "score": 15963, "price": 18800},
+                {"name": "NVIDIA GeForce RTX 5060 Ti 8 GB", "memory": "8GB GDDR7", "release": "2025.04", "score": 15926, "price": 2900},
+                {"name": "NVIDIA RTX A5500", "memory": "24GB GDDR6", "release": "2022.03", "score": 15878, "price": 12000},
+                {"name": "NVIDIA GeForce RTX 5060 Ti 8GB", "memory": "8GB GDDR7", "release": "2025.04", "score": 15868, "price": 2900},
+                {"name": "AMD Radeon PRO W7900", "memory": "48GB GDDR6", "release": "2023.04", "score": 15787, "price": 3600},
+                {"name": "AMD Radeon PRO W7700", "memory": "16GB GDDR6", "release": "2023.11", "score": 15693, "price": 9900}
+            ]
+        };
+
+        let gpuData = [];
+        let highlightedGpus = [];
+        let showOnlyHighlighted = false;
+        let hoveredIndex = -1;
+
+        const canvas = document.getElementById('chartCanvas');
+        const ctx = canvas.getContext('2d');
+        let chartRect = { x: 80, y: 40, width: 0, height: 0 };
+        let dpr = window.devicePixelRatio || 1;
+
+        // ---------- 对数坐标辅助函数 ----------
+        function log10(x) {
+            return Math.log10(x);
+        }
+
+        // 价格 -> X 坐标 (对数映射)
+        function priceToX(price, minPrice, maxPrice, rectX, rectWidth) {
+            if (price <= 0) return rectX;
+            const logMin = log10(minPrice);
+            const logMax = log10(maxPrice);
+            const t = (log10(price) - logMin) / (logMax - logMin);
+            return rectX + t * rectWidth;
+        }
+
+        // X 坐标 -> 价格 (用于可能的鼠标交互，目前仅用于辅助)
+        function xToPrice(x, minPrice, maxPrice, rectX, rectWidth) {
+            const logMin = log10(minPrice);
+            const logMax = log10(maxPrice);
+            const t = (x - rectX) / rectWidth;
+            const logPrice = logMin + t * (logMax - logMin);
+            return Math.pow(10, logPrice);
+        }
+
+        function init() {
+            loadGPUData(defaultGPUData);
+            setupEventListeners();
+            resizeCanvas();
+        }
+
+        function loadGPUData(data) {
+            gpuData = data.gpus.map(gpu => ({
+                ...gpu,
+                costPerformance: gpu.price > 0 ? (gpu.score / gpu.price) : 0,
+                aboveTrend: false,
+                distanceFromTrend: 0
+            }));
+            calculateTrendLine();      // 基于对数价格回归
+            markHighlightedGpus();
+            updateStats();
+            drawChart();
+            populateTable();
+        }
+
+        function calculateTrendLine() {
+            // 使用 log(price) 对 score 做线性回归，使得在对数-线性图上趋势线为直线
+            const points = gpuData.filter(g => g.price > 0 && g.score > 0);
+            if (points.length < 2) return;
+
+            let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+            const n = points.length;
+            points.forEach(p => {
+                const logPrice = log10(p.price);
+                sumX += logPrice;
+                sumY += p.score;
+                sumXY += logPrice * p.score;
+                sumX2 += logPrice * logPrice;
+            });
+            const a = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+            const b = (sumY - a * sumX) / n;
+
+            // 计算平均性价比（原始）
+            const avgCP = points.reduce((sum, p) => sum + (p.score / p.price), 0) / n;
+
+            // 为每个GPU计算趋势值和距离
+            gpuData.forEach(gpu => {
+                if (gpu.price > 0) {
+                    const logPrice = log10(gpu.price);
+                    const trendScore = a * logPrice + b;
+                    gpu.trendScore = trendScore;
+                    gpu.distanceFromTrend = gpu.score - trendScore;
+                    gpu.aboveTrend = gpu.distanceFromTrend > 0;
+                    const cpThreshold = avgCP * 1.1;
+                    gpu.isHighlighted = gpu.costPerformance > cpThreshold;
+                }
+            });
+            window.trendParams = { a, b };
+            window.avgCostPerformance = avgCP;
+        }
+
+        function markHighlightedGpus() {
+            highlightedGpus = gpuData.filter(g => g.isHighlighted);
+        }
+
+        function updateStats() {
+            document.getElementById('totalGpus').textContent = gpuData.length;
+            const avgCP = gpuData.reduce((sum, g) => sum + g.costPerformance, 0) / gpuData.length;
+            document.getElementById('avgCostPerformance').textContent = avgCP.toFixed(2);
+            const bestGPU = gpuData.reduce((best, g) => g.costPerformance > best.costPerformance ? g : best, gpuData[0]);
+            document.getElementById('bestValue').textContent = bestGPU.name.replace('NVIDIA GeForce ', '').replace('AMD Radeon ', '').replace('NVIDIA ', '').replace('AMD ', '');
+            document.getElementById('highlightCount').textContent = highlightedGpus.length;
+        }
+
+        function resizeCanvas() {
+            const container = canvas.parentElement.parentElement;
+            const width = container.clientWidth - 40;
+            const height = Math.min(700, Math.max(500, window.innerHeight * 0.6));
+            canvas.style.width = width + 'px';
+            canvas.style.height = height + 'px';
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
+            ctx.scale(dpr, dpr);
+            chartRect = {
+                x: 80,
+                y: 40,
+                width: width - 120,
+                height: height - 100
+            };
+            drawChart();
+        }
+
+        function drawChart() {
+            const w = canvas.width / dpr;
+            const h = canvas.height / dpr;
+            ctx.clearRect(0, 0, w, h);
+            ctx.fillStyle = '#0d0d0d';
+            ctx.fillRect(0, 0, w, h);
+
+            const prices = gpuData.map(g => g.price).filter(p => p > 0);
+            if (prices.length === 0) return;
+            const minPrice = Math.min(...prices) * 0.9;
+            const maxPrice = Math.max(...prices) * 1.05;
+            const scores = gpuData.map(g => g.score);
+            const minScore = 0;
+            const maxScore = Math.max(...scores) * 1.05;
+
+            drawGrid(minPrice, maxPrice, minScore, maxScore, w, h);
+            drawIdealLine(minPrice, maxPrice, minScore, maxScore, w, h);
+            drawTrendLine(minPrice, maxPrice, minScore, maxScore, w, h);
+
+            const displayData = showOnlyHighlighted ? gpuData.filter(g => g.isHighlighted) : gpuData;
+            displayData.forEach((gpu, idx) => {
+                if (gpu.price <= 0) return;
+                const x = priceToX(gpu.price, minPrice, maxPrice, chartRect.x, chartRect.width);
+                const y = chartRect.y + chartRect.height - ((gpu.score - minScore) / (maxScore - minScore)) * chartRect.height;
+                gpu.screenX = x;
+                gpu.screenY = y;
+                const isHighlighted = gpu.isHighlighted;
+                const isHovered = idx === hoveredIndex;
+
+                ctx.beginPath();
+                ctx.arc(x, y, isHovered ? 8 : (isHighlighted ? 6 : 4), 0, Math.PI * 2);
+                if (isHighlighted) {
+                    ctx.fillStyle = '#00d4ff';
+                    ctx.shadowColor = '#00d4ff';
+                    ctx.shadowBlur = 10;
+                } else if (gpu.aboveTrend) {
+                    ctx.fillStyle = '#4ade80';
+                    ctx.shadowBlur = 0;
+                } else {
+                    ctx.fillStyle = '#ff6b6b';
+                    ctx.shadowBlur = 0;
+                }
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                if (isHighlighted || isHovered) {
+                    drawLabel(gpu, x, y, w, h);
+                }
+            });
+            drawAxisLabels(minPrice, maxPrice, minScore, maxScore, w, h);
+        }
+
+        function drawGrid(minPrice, maxPrice, minScore, maxScore, w, h) {
+            ctx.strokeStyle = '#222';
+            ctx.lineWidth = 1;
+            const steps = 8;
+            const logMin = log10(minPrice);
+            const logMax = log10(maxPrice);
+            for (let i = 0; i <= steps; i++) {
+                const t = i / steps;
+                const logVal = logMin + t * (logMax - logMin);
+                const price = Math.pow(10, logVal);
+                const x = priceToX(price, minPrice, maxPrice, chartRect.x, chartRect.width);
+                ctx.beginPath();
+                ctx.moveTo(x, chartRect.y);
+                ctx.lineTo(x, chartRect.y + chartRect.height);
+                ctx.stroke();
+            }
+            const scoreSteps = 6;
+            for (let i = 0; i <= scoreSteps; i++) {
+                const score = minScore + (maxScore - minScore) * (i / scoreSteps);
+                const y = chartRect.y + chartRect.height - (i / scoreSteps) * chartRect.height;
+                ctx.beginPath();
+                ctx.moveTo(chartRect.x, y);
+                ctx.lineTo(chartRect.x + chartRect.width, y);
+                ctx.stroke();
+            }
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(chartRect.x, chartRect.y, chartRect.width, chartRect.height);
+        }
+
+        function drawIdealLine(minPrice, maxPrice, minScore, maxScore, w, h) {
+            if (!window.avgCostPerformance) return;
+            const avgCP = window.avgCostPerformance;
+            ctx.beginPath();
+            ctx.strokeStyle = '#ffd700';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([5, 5]);
+            let first = true;
+            const steps = 200;
+            for (let i = 0; i <= steps; i++) {
+                const t = i / steps;
+                const logVal = log10(minPrice) + t * (log10(maxPrice) - log10(minPrice));
+                const price = Math.pow(10, logVal);
+                const score = avgCP * price;
+                const x = priceToX(price, minPrice, maxPrice, chartRect.x, chartRect.width);
+                const y = chartRect.y + chartRect.height - ((score - minScore) / (maxScore - minScore)) * chartRect.height;
+                if (first) {
+                    ctx.moveTo(x, y);
+                    first = false;
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#ffd700';
+            ctx.font = '12px sans-serif';
+            ctx.fillText('理想性价比线', chartRect.x + chartRect.width - 140, chartRect.y + 40);
+        }
+
+        function drawTrendLine(minPrice, maxPrice, minScore, maxScore, w, h) {
+            if (!window.trendParams) return;
+            const { a, b } = window.trendParams;
+            ctx.beginPath();
+            ctx.strokeStyle = '#7b2ff7';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([8, 4]);
+            let first = true;
+            const steps = 200;
+            for (let i = 0; i <= steps; i++) {
+                const t = i / steps;
+                const logVal = log10(minPrice) + t * (log10(maxPrice) - log10(minPrice));
+                const price = Math.pow(10, logVal);
+                const score = a * log10(price) + b;
+                const x = priceToX(price, minPrice, maxPrice, chartRect.x, chartRect.width);
+                const y = chartRect.y + chartRect.height - ((score - minScore) / (maxScore - minScore)) * chartRect.height;
+                if (first) {
+                    ctx.moveTo(x, y);
+                    first = false;
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#7b2ff7';
+            ctx.font = '12px sans-serif';
+            ctx.fillText('市场趋势线', chartRect.x + chartRect.width - 120, chartRect.y + 20);
+        }
+
+        function drawLabel(gpu, x, y, w, h) {
+            const shortName = gpu.name.replace('NVIDIA GeForce ', '').replace('AMD Radeon ', '').replace('NVIDIA ', '').replace('AMD ', '');
+            ctx.font = '11px sans-serif';
+            const textWidth = ctx.measureText(shortName).width;
+            let labelX = x + 10;
+            let labelY = y - 10;
+            if (labelX + textWidth + 20 > w) labelX = x - textWidth - 20;
+            if (labelY - 20 < chartRect.y) labelY = y + 15;
+            ctx.fillStyle = gpu.isHighlighted ? 'rgba(0, 212, 255, 0.15)' : 'rgba(255, 255, 255, 0.1)';
+            ctx.strokeStyle = gpu.isHighlighted ? '#00d4ff' : '#666';
+            ctx.lineWidth = 1;
+            const padding = 6;
+            ctx.beginPath();
+            ctx.roundRect(labelX - padding, labelY - padding - 10, textWidth + padding * 2, 22, 4);
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = gpu.isHighlighted ? '#00d4ff' : '#aaa';
+            ctx.fillText(shortName, labelX, labelY + 4);
+        }
+
+        function drawAxisLabels(minPrice, maxPrice, minScore, maxScore, w, h) {
+            ctx.fillStyle = '#666';
+            ctx.font = '11px sans-serif';
+            ctx.textAlign = 'center';
+            const steps = 6;
+            for (let i = 0; i <= steps; i++) {
+                const t = i / steps;
+                const logVal = log10(minPrice) + t * (log10(maxPrice) - log10(minPrice));
+                const price = Math.pow(10, logVal);
+                const x = priceToX(price, minPrice, maxPrice, chartRect.x, chartRect.width);
+                if (price >= minPrice && price <= maxPrice) {
+                    ctx.fillText(Math.round(price).toLocaleString(), x, chartRect.y + chartRect.height + 20);
+                }
+            }
+            ctx.textAlign = 'right';
+            const scoreSteps = 6;
+            for (let i = 0; i <= scoreSteps; i++) {
+                const score = Math.round(minScore + (maxScore - minScore) * (i / scoreSteps));
+                const y = chartRect.y + chartRect.height - (i / scoreSteps) * chartRect.height;
+                ctx.fillText(score.toLocaleString(), chartRect.x - 10, y + 4);
+            }
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#888';
+            ctx.font = '12px sans-serif';
+            ctx.fillText('价格 (¥) — 对数坐标', chartRect.x + chartRect.width / 2, h - 10);
+            ctx.save();
+            ctx.translate(15, chartRect.y + chartRect.height / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.fillText('天梯分数', 0, 0);
+            ctx.restore();
+        }
+
+        function setupEventListeners() {
+            window.addEventListener('resize', () => resizeCanvas());
+            canvas.addEventListener('mousemove', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                let found = false;
+                for (let i = 0; i < gpuData.length; i++) {
+                    const gpu = gpuData[i];
+                    if (gpu.screenX === undefined) continue;
+                    const dx = x - gpu.screenX;
+                    const dy = y - gpu.screenY;
+                    if (Math.sqrt(dx*dx + dy*dy) < 15) {
+                        hoveredIndex = i;
+                        showTooltip(gpu, e.clientX, e.clientY);
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    hoveredIndex = -1;
+                    hideTooltip();
+                }
+                drawChart();
+            });
+            canvas.addEventListener('mouseleave', () => {
+                hoveredIndex = -1;
+                hideTooltip();
+                drawChart();
+            });
+            document.getElementById('loadDefaultBtn').addEventListener('click', () => {
+                loadGPUData(defaultGPUData);
+                showOnlyHighlighted = false;
+                document.getElementById('filterBtn').classList.remove('active');
+            });
+            document.getElementById('uploadBtn').addEventListener('click', () => document.getElementById('fileInput').click());
+            document.getElementById('fileInput').addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    try { loadGPUData(JSON.parse(ev.target.result)); } 
+                    catch { alert('JSON格式错误'); }
+                };
+                reader.readAsText(file);
+                e.target.value = '';
+            });
+            document.getElementById('toggleTemplateBtn').addEventListener('click', () => {
+                document.getElementById('jsonTemplate').classList.toggle('visible');
+            });
+            document.getElementById('filterBtn').addEventListener('click', (e) => {
+                showOnlyHighlighted = !showOnlyHighlighted;
+                e.target.classList.toggle('active');
+                drawChart();
+            });
+            document.getElementById('toggleTableBtn').addEventListener('click', () => {
+                const container = document.getElementById('tableContainer');
+                container.style.display = container.style.display !== 'none' ? 'none' : 'block';
+                if (container.style.display === 'block') populateTable();
+            });
+            document.getElementById('backBtn').addEventListener('click', () => window.history.back());
+        }
+
+        function showTooltip(gpu, mouseX, mouseY) {
+            const tooltip = document.getElementById('tooltip');
+            document.getElementById('tooltipName').textContent = gpu.name;
+            const trendInfo = gpu.aboveTrend ? `<span style="color: #4ade80;">高于趋势线 +${Math.round(gpu.distanceFromTrend)}</span>` : `<span style="color: #ff6b6b;">低于趋势线 ${Math.round(gpu.distanceFromTrend)}</span>`;
+            document.getElementById('tooltipInfo').innerHTML = `
+                显存: <span>${gpu.memory}</span><br>
+                发布: <span>${gpu.release}</span><br>
+                天梯分数: <span>${gpu.score}</span><br>
+                价格: <span>¥${gpu.price.toLocaleString()}</span><br>
+                性价比: <span>${gpu.costPerformance.toFixed(2)}</span><br>
+                趋势偏差: ${trendInfo}
+                ${gpu.isHighlighted ? '<div class="highlight-badge">⭐ 高性价比推荐</div>' : ''}
+            `;
+            const rect = canvas.parentElement.getBoundingClientRect();
+            let left = mouseX - rect.left + 15;
+            let top = mouseY - rect.top - 10;
+            if (left + 280 > rect.width) left = mouseX - rect.left - 295;
+            if (top + 200 > rect.height) top = rect.height - 210;
+            tooltip.style.left = left + 'px';
+            tooltip.style.top = top + 'px';
+            tooltip.classList.add('visible');
+        }
+
+        function hideTooltip() {
+            document.getElementById('tooltip').classList.remove('visible');
+        }
+
+        function populateTable() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            const sorted = [...gpuData].sort((a,b) => b.costPerformance - a.costPerformance);
+            sorted.forEach((gpu, idx) => {
+                const tr = document.createElement('tr');
+                if (gpu.isHighlighted) tr.classList.add('highlight-row');
+                let evaluation = gpu.costPerformance > 5 ? '极佳' : (gpu.costPerformance > 4 ? '优秀' : (gpu.costPerformance > 3 ? '良好' : '一般'));
+                tr.innerHTML = `
+                    <td>${idx+1}</td>
+                    <td>${gpu.name}</td>
+                    <td>${gpu.memory}</td>
+                    <td>${gpu.score}</td>
+                    <td>¥${gpu.price.toLocaleString()}</td>
+                    <td class="cost-performance">${gpu.costPerformance.toFixed(2)}</td>
+                    <td>${evaluation}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // 辅助方法
+        if (!CanvasRenderingContext2D.prototype.roundRect) {
+            CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+                if (w < 2 * r) r = w / 2;
+                if (h < 2 * r) r = h / 2;
+                this.moveTo(x+r, y);
+                this.lineTo(x+w-r, y);
+                this.quadraticCurveTo(x+w, y, x+w, y+r);
+                this.lineTo(x+w, y+h-r);
+                this.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+                this.lineTo(x+r, y+h);
+                this.quadraticCurveTo(x, y+h, x, y+h-r);
+                this.lineTo(x, y+r);
+                this.quadraticCurveTo(x, y, x+r, y);
+                return this;
+            };
+        }
+
+        init();
+    </script>
+</body>
+</html>
