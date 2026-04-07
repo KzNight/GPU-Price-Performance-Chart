@@ -6,11 +6,8 @@
 
 > 交互式散点图：天梯分数 vs 市场价格，自动计算趋势线，高亮高性价比显卡。
 
-![截图示例](screenshot.png)
+![截图示例](图1样例.png)
 
-## 在线演示
-
-👉 [点击使用工具](https://your-username.github.io/GPU-Price-Performance-Chart/) *(实际链接请替换)*
 
 ## 主要功能
 
